@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tail.trade Fork Audit — What Needs Work</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface-2: #1a1a26;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-muted: #7a7a90;
+  --green: #22c55e;
+  --green-dim: #22c55e22;
+  --yellow: #eab308;
+  --yellow-dim: #eab30822;
+  --red: #ef4444;
+  --red-dim: #ef444422;
+  --blue: #3b82f6;
+  --blue-dim: #3b82f622;
+  --purple: #a855f7;
+  --purple-dim: #a855f722;
+  --orange: #f97316;
+  --orange-dim: #f9731622;
+  --cyan: #06b6d4;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.grain {
+  position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* Header */
+header {
+  padding: 60px 0 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+header .eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 12px;
+}
+
+header h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -1.5px;
+  background: linear-gradient(135deg, #fff 0%, #999 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+header .subtitle {
+  font-size: 18px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  font-weight: 300;
+}
+
+/* Score bar */
+.score-bar {
+  display: flex;
+  gap: 2px;
+  margin: 48px 0 16px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.score-bar .segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  transition: flex 0.4s ease;
+}
+
+.score-bar .segment.done { background: var(--green); flex: 45; }
+.score-bar .segment.partial { background: var(--yellow); flex: 35; }
+.score-bar .segment.missing { background: var(--red); flex: 20; }
+
+.score-legend {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.score-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.score-legend .l-done::before { background: var(--green); }
+.score-legend .l-partial::before { background: var(--yellow); }
+.score-legend .l-missing::before { background: var(--red); }
+
+/* Section */
+section {
+  padding: 48px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+section:last-child { border-bottom: none; }
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.section-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.section-header .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.tag-green { background: var(--green-dim); color: var(--green); }
+.tag-yellow { background: var(--yellow-dim); color: var(--yellow); }
+.tag-red { background: var(--red-dim); color: var(--red); }
+.tag-blue { background: var(--blue-dim); color: var(--blue); }
+.tag-purple { background: var(--purple-dim); color: var(--purple); }
+.tag-orange { background: var(--orange-dim); color: var(--orange); }
+
+/* Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  transition: border-color 0.2s;
+}
+
+.card:hover { border-color: #444; }
+
+.card .card-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.card h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.card .filepath {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--cyan);
+  margin-top: 10px;
+  opacity: 0.7;
+  word-break: break-all;
+}
+
+/* Priority list */
+.priority-list {
+  counter-reset: priority;
+}
+
+.priority-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: start;
+  gap: 20px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+  counter-increment: priority;
+}
+
+.priority-item:last-child { border-bottom: none; }
+
+.priority-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.priority-num::before {
+  content: counter(priority, decimal-leading-zero);
+}
+
+.priority-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.priority-content p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.priority-effort {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* Fullwidth table-like items */
+.audit-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 100px;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.audit-row .name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.audit-row .detail {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.audit-row .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.dot-green { background: var(--green); }
+.dot-yellow { background: var(--yellow); }
+.dot-red { background: var(--red); }
+
+/* Security callout */
+.callout {
+  background: var(--red-dim);
+  border: 1px solid #ef444444;
+  border-radius: 10px;
+  padding: 24px 28px;
+  margin: 16px 0;
+}
+
+.callout.warn {
+  background: var(--yellow-dim);
+  border-color: #eab30844;
+}
+
+.callout.info {
+  background: var(--blue-dim);
+  border-color: #3b82f644;
+}
+
+.callout h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.callout p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.callout code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: #00000033;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+/* Inline code */
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--cyan);
+}
+
+/* Summary boxes */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 32px 0;
+}
+
+.summary-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.summary-box .num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.summary-box .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-grid { grid-template-columns: 1fr; }
+  .audit-row { grid-template-columns: 1fr; }
+  .priority-item { grid-template-columns: 40px 1fr; }
+  .priority-effort { grid-column: 2; }
+}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="container">
+
+<header>
+  <div class="eyebrow">Fork Audit Report — March 18, 2026</div>
+  <h1>Tail.trade — What Needs Work</h1>
+  <div class="subtitle">Comprehensive gap analysis of the Drift v2 fork for sports perpetuals</div>
+</header>
+
+<!-- Score -->
+<div class="score-bar">
+  <div class="segment done">45%</div>
+  <div class="segment partial">35%</div>
+  <div class="segment missing">20%</div>
+</div>
+<div class="score-legend">
+  <span class="l-done">Shipped / Working</span>
+  <span class="l-partial">In fork, needs work</span>
+  <span class="l-missing">Not started</span>
+</div>
+
+<div class="summary-grid">
+  <div class="summary-box">
+    <div class="num" style="color:var(--green)">14</div>
+    <div class="label">Perp Markets</div>
+  </div>
+  <div class="summary-box">
+    <div class="num" style="color:var(--green)">8</div>
+    <div class="label">Services Running</div>
+  </div>
+  <div class="summary-box">
+    <div class="num" style="color:var(--yellow)">0</div>
+    <div class="label">Mainnet Deploys</div>
+  </div>
+  <div class="summary-box">
+    <div class="num" style="color:var(--red)">6</div>
+    <div class="label">Critical Gaps</div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SECTION 1: CRITICAL / BLOCKERS -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>Critical Gaps — Must Fix Before Any User Touches This</h2>
+    <span class="tag tag-red">BLOCKERS</span>
+  </div>
+
+  <div class="priority-list">
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>Hardcoded Helius API Key Leaked in 6+ Config Files</h3>
+        <p>The key <code>3f2a657d-6196-4596-afa2-ee05787d778b</code> is hardcoded in plain text across <code>custom-dex.config.yaml</code>, <code>custom-dex-filler.config.yaml</code>, <code>sportsmaker-tight.config.yaml</code>, and the chain-monitor defaults. This isn't just a devnet convenience — if this repo goes public or the key has mainnet-beta RPC access, it's immediately exploitable. All RPC endpoints need to be env vars, zero hardcoded keys.</p>
+      </div>
+      <div class="priority-effort tag-red" style="background:var(--red-dim); color:var(--red);">1 HOUR</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>No Privy / Embedded Wallet — Still on Raw wallet-adapter</h3>
+        <p>Frontend uses <code>@solana/wallet-adapter-react</code> directly. Zero Privy integration. The entire Notch.win UX thesis (Hyperliquid-like mobile, gasless orders, one-tap onboarding) depends on embedded wallets. This is the biggest UX gap — a retail user hitting "Connect Wallet" and needing Phantom is a 90%+ drop-off. Privy SDK needs to wrap the wallet provider, handle account creation, and bridge to the Drift SDK's <code>Wallet</code> interface.</p>
+      </div>
+      <div class="priority-effort tag-red" style="background:var(--red-dim); color:var(--red);">2-3 WEEKS</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>No Gasless / Swift Order Path from Frontend</h3>
+        <p>The Swift server is in the repo (Rust service with Kafka), and the keeper has <code>placerExample.ts</code> for Swift order placement — but the frontend has <strong>zero Swift integration</strong>. Every trade currently goes through a normal Solana transaction that the user signs and pays gas for. For the "mobile-first gasless" experience, the frontend needs to: sign an off-chain Swift message → POST to the Swift server → server submits on-chain. This is the other half of the Privy story.</p>
+      </div>
+      <div class="priority-effort tag-red" style="background:var(--red-dim); color:var(--red);">2-3 WEEKS</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>No Mainnet Program Keypair — No Deployment Pathway</h3>
+        <p>The <code>keys/</code> directory is empty (just <code>.gitkeep</code>). There are no mainnet keypairs, no deploy scripts for mainnet-beta, and <code>Anchor.toml</code> still points at a localnet program ID (<code>6prdU12b...</code>) that differs from the devnet ID (<code>2XUSofeG...</code>). The deployment.json only defines dev and staging — no production environment. Need: mainnet program keypair generation, Anchor.toml alignment, and a deployment runbook.</p>
+      </div>
+      <div class="priority-effort tag-orange" style="background:var(--orange-dim); color:var(--orange);">1 WEEK</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>Fee Structure Not Customized — Still Drift's 5bps Defaults</h3>
+        <p>The on-chain program hardcodes Drift's original fee tiers (5/4.5/4/3.5/3/2.5 bps taker, 2bps maker rebate, 6 volume tiers). The Notch target is 10bps taker / 2bps maker with no rebates. The <code>update_perp_fee_structure</code> admin instruction exists but there's <strong>no script to call it</strong>. Need a one-shot admin script to set the production fee schedule post-deploy, and decide whether to keep volume tiers or flatten to a single tier.</p>
+      </div>
+      <div class="priority-effort tag-yellow" style="background:var(--yellow-dim); color:var(--yellow);">1 DAY</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>Anchor.toml Program ID Mismatch</h3>
+        <p><code>Anchor.toml</code> declares <code>6prdU12b...</code> for all networks, but <code>lib.rs</code> has <code>declare_id!("2XUSofeG...")</code> and all services reference <code>2XUSofeG...</code>. This mismatch means <code>anchor build</code> and <code>anchor deploy</code> won't work correctly without manual overrides. These need to be aligned — either update Anchor.toml to match the deployed devnet program, or clarify which is canonical.</p>
+      </div>
+      <div class="priority-effort tag-yellow" style="background:var(--yellow-dim); color:var(--yellow);">30 MIN</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================= -->
+<!-- SECTION 2: WHAT'S IN THE FORK BUT NEEDS POLISH -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>In the Fork — Needs More Work</h2>
+    <span class="tag tag-yellow">PARTIAL</span>
+  </div>
+
+  <div class="card-grid">
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● NEEDS DECISIONS</div>
+      <h3>Referral System — Plumbing In, UI Missing</h3>
+      <p>The full Drift referral system carried over: <code>UserStats.referrer</code>, <code>ReferrerName</code> account, 15% referrer reward / 5% referee discount in fee math, <code>ReferrerMap</code> in keeper fills, SDK methods. But there's <strong>no /referrals page</strong> in the frontend and no decision on whether to keep Drift's 15/5 split or set your own for Notch.</p>
+      <div class="filepath">state/user.rs → UserStats, math/fees.rs → referrer_reward</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● NEEDS DECISIONS</div>
+      <h3>Leaderboard — Data On-Chain, No UI</h3>
+      <p><code>taker_volume_30d</code>, <code>maker_volume_30d</code>, <code>filler_volume_30d</code> with rolling decay logic all present. <code>UserStatsMap</code> in SDK can bulk-load and sort. No frontend page. For sports perps this could be a strong engagement feature — "top traders on Arsenal this week" etc.</p>
+      <div class="filepath">state/user.rs:1957-1971 → volume fields</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● PARTIALLY WIRED</div>
+      <h3>SportsMaker Bot — Exists But Config Fragmented</h3>
+      <p>511-line <code>sportsMaker.ts</code> places multi-level bid/ask ladders using oraclePriceOffset. Config was split into tight/mid/wide yamls. But the main <code>custom-dex.config.yaml</code> comments out sportsMaker, and the sportsmaker configs still hardcode Helius keys. Need to consolidate, env-var the keys, and validate the ladder logic actually works against PrelaunchOracle movements.</p>
+      <div class="filepath">services/keeper/src/bots/sportsMaker.ts</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● NEEDS STRIPPING</div>
+      <h3>FUEL Loyalty System — Dead Weight</h3>
+      <p><code>fuel_taker</code>, <code>fuel_maker</code>, <code>fuel_deposits</code>, <code>fuel_borrows</code>, <code>fuel_insurance</code>, <code>fuel_positions</code> — all on-chain in <code>UserStats</code>, plus <code>math/fuel.rs</code> (with tests). This is Drift's token loyalty program. You don't have a FUEL token. Either strip it to save account rent, or repurpose the fields for a Notch points system. Leaving it as-is wastes 24 bytes per user account.</p>
+      <div class="filepath">state/user.rs:1989-1999, math/fuel.rs</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● WORKS BUT FRAGILE</div>
+      <h3>Oracle → Chain Pipeline (PrelaunchOracle)</h3>
+      <p>The team-oracle service fetches from MSI v3 API, maps to 14 teams, and pushes via <code>adminClient.updatePrelaunchOracleParams()</code>. This works but has single-point-of-failure risk: one admin keypair, one process, 60s intervals. No redundancy, no fallback oracle source, no on-chain staleness circuit breaker (only alerting in chain-monitor). Production needs at minimum a hot-standby oracle process.</p>
+      <div class="filepath">services/team-oracle/src/solana-updater.ts</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● NEEDS HARDENING</div>
+      <h3>Repegger — Generic, Not Sports-Tuned</h3>
+      <p>The repegger bot is the standard Drift one: watches oracle-AMM spread and calls <code>repeg</code> when they diverge. But sports prices move differently than crypto — they're stable for hours then jump 2-5% on match results. The repegger's <code>spreadThresholdPct: 2</code> and <code>defaultIntervalMs: 60000</code> may be too slow for match settlement spikes and too aggressive during quiet periods. Needs sports-specific tuning.</p>
+      <div class="filepath">services/keeper/src/bots/repegger.ts</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● INCOMPLETE</div>
+      <h3>Frontend — Functional Skeleton, Not Retail-Ready</h3>
+      <p>6 pages (home, trade, portfolio, account, admin, perps). Has order book, trading form, position management, PnL display. But no: market overview dashboard, referral page, leaderboard, fee table modal, USDC onramp/faucet UI, mobile responsive testing, sports-specific data (match schedule, team logos, ELO history chart). This is a dev tool, not a consumer product.</p>
+      <div class="filepath">services/frontend/src/app/</div>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--yellow);">● EXISTS, UNVERIFIED</div>
+      <h3>Builder Codes (DBC) System</h3>
+      <p><code>RevenueShare</code>, <code>RevenueShareOrder</code>, and the entire DBC escrow flow are in the program. This lets third-party builders route orders and earn fees — useful if you want affiliates or API partners to build on Notch. But it's completely untested in this fork and the frontend has no builder management UI.</p>
+      <div class="filepath">state/revenue_share.rs, state/revenue_share_map.rs</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================= -->
+<!-- SECTION 3: NOT STARTED / MISSING -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>Not Started — Needs Building</h2>
+    <span class="tag tag-red">MISSING</span>
+  </div>
+
+  <div class="card-grid">
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>Account Struct Optimization (Min SOL Rent)</h3>
+      <p>Drift's User account is ~4,000+ bytes. At mainnet rent rates that's ~0.03 SOL per account. The plan was to optimize struct packing to minimize rent for new users (critical for embedded wallet onboarding where Notch pays the rent). No work done — the account struct is unchanged from upstream Drift. This requires protocol-level Rust changes.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>Mobile App / PWA</h3>
+      <p>The entire Notch.win thesis is mobile-first trading. The current frontend is a Next.js web app with no PWA manifest, no service worker, no mobile-specific layouts, no touch gesture handling for the trading chart. Building a Swift wrapper (or React Native) for iOS with Privy embedded wallets is a separate workstream that hasn't started.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>USDC Onramp Integration</h3>
+      <p>Retail users need to buy USDC to trade. There's no fiat onramp integration (MoonPay, Transak, Stripe crypto). The devnet has a faucet script but production users need a real path from card/bank → USDC → deposit. This is a major UX cliff.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>Offseason / Season Transition Logic</h3>
+      <p>What happens when EPL season ends? The oracle pipeline currently has no concept of offseason pricing, league transitions, promotion/relegation, or market settlement/expiry. The V2 oracle design included offseason futures regime using Betfair bracket probabilities — none of that is implemented in the team-oracle service. Markets will just go stale.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>Multi-League Expansion</h3>
+      <p>Config currently has 14 teams (10 EPL + 3 La Liga + 1 EPL extra). The MSI API serves 96 teams across multiple leagues. No UI for league switching, no config for dynamically adding markets, no admin scripts for initializing new perp markets post-deploy. Adding Serie A or Bundesliga is manual Rust/admin work today.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-status" style="color:var(--red);">● NOT STARTED</div>
+      <h3>Security Audit</h3>
+      <p>Drift's upstream was audited by Neodyme. Your fork inherits that audit for unchanged code, but any modifications (new oracle types, custom fee logic, removed features) invalidate coverage. The PrelaunchOracle admin-key dependency is itself a centralization risk that an auditor would flag. No audit planned or scoped.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================= -->
+<!-- SECTION 4: WHAT'S SOLID -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>What's Solid — Don't Touch</h2>
+    <span class="tag tag-green">WORKING</span>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:8px;">
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>On-chain Program</div>
+      <div class="detail">Full Drift v2 fork deployed on devnet. All instructions work. 14 perp markets initialized. PrelaunchOracle operational.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Team Oracle Bot</div>
+      <div class="detail">Fetches MSI v3 API (bulk + fallback), pushes to chain via adminClient. Prometheus metrics. Graceful shutdown.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>DLOB Server</div>
+      <div class="detail">Publisher, HTTP API, WebSocket — all three containers configured. Redis-backed. Standard Drift DLOB.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Keeper Bots</div>
+      <div class="detail">Filler, liquidator, trigger, fundingRateUpdater, userPnlSettler, floatingMaker, jitMaker, repegger — all configured.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Chain Monitor</div>
+      <div class="detail">Watches wallet balances, oracle staleness, market health. Prometheus/Grafana dashboards configured.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Monitoring Stack</div>
+      <div class="detail">Prometheus + Grafana + Loki + Promtail + exporters. Docker Compose with persistent volumes.</div>
+      <div><span class="tag tag-green">LIVE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Fee Tier Engine</div>
+      <div class="detail">6-tier volume-based fee schedule + staking booster + high leverage 2x multiplier. All on-chain. Admin-updatable.</div>
+      <div><span class="tag tag-green">CODE DONE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Referral System</div>
+      <div class="detail">Full on-chain: UserStats referrer, ReferrerName, fee splitting, epoch caps. SDK + keeper integration. No UI.</div>
+      <div><span class="tag tag-green">CODE DONE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>SDK (TypeScript)</div>
+      <div class="detail">Full @drift-labs/sdk fork in packages/sdk. All types, DriftClient, UserStats, ReferrerMap, PDA helpers.</div>
+      <div><span class="tag tag-green">CODE DONE</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name"><span class="status-dot dot-green"></span>Docker Infrastructure</div>
+      <div class="detail">Full docker-compose with nginx, certbot, redis, all services. Env templates for dev/staging. Deploy scripts.</div>
+      <div><span class="tag tag-green">CODE DONE</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================= -->
+<!-- SECTION 5: RECOMMENDED PRIORITY ORDER -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>Recommended Execution Order</h2>
+    <span class="tag tag-blue">ROADMAP</span>
+  </div>
+
+  <div class="callout info">
+    <h4>The two critical paths are: (A) mainnet deployment readiness, and (B) retail UX. They can run in parallel.</h4>
+    <p>Path A is infrastructure — keys, fees, configs, security. Path B is Privy + Swift + mobile. Path A unblocks testnet trading with real users. Path B is what makes Notch different from "yet another perp DEX with Phantom wallet."</p>
+  </div>
+
+  <div class="priority-list" style="margin-top: 24px;">
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>🔒 Purge hardcoded keys, env-var everything</h3>
+        <p>Rotate the Helius key. Move all RPC endpoints, program IDs, and keypair paths to env vars or GCP Secret Manager. Update all yaml configs.</p>
+      </div>
+      <div class="priority-effort tag-green" style="background:var(--green-dim); color:var(--green);">TODAY</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>🔧 Fix Anchor.toml ↔ lib.rs program ID mismatch</h3>
+        <p>Align program IDs. Decide canonical devnet ID. Document which keypair owns which program.</p>
+      </div>
+      <div class="priority-effort tag-green" style="background:var(--green-dim); color:var(--green);">TODAY</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>💰 Write fee-structure admin script</h3>
+        <p>Script that calls <code>update_perp_fee_structure</code> to set 10bps/2bps (or whatever Notch lands on). Run on devnet first, then mainnet post-deploy.</p>
+      </div>
+      <div class="priority-effort tag-green" style="background:var(--green-dim); color:var(--green);">1 DAY</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div name="priority-content">
+      <div class="priority-content">
+        <h3>🔑 Generate mainnet keypairs + deployment config</h3>
+        <p>Program keypair, admin keypair, keeper keypair. Add production environment to deployment.json. Write mainnet deployment runbook.</p>
+      </div>
+      <div class="priority-effort tag-yellow" style="background:var(--yellow-dim); color:var(--yellow);">1 WEEK</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>📱 Privy SDK integration</h3>
+        <p>Replace wallet-adapter with Privy. Embedded wallet creation on signup. Session keys for gasless signing. This is the #1 UX differentiator.</p>
+      </div>
+      <div class="priority-effort tag-red" style="background:var(--red-dim); color:var(--red);">2-3 WEEKS</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>⚡ Swift gasless order flow</h3>
+        <p>Wire frontend → Swift server → on-chain. User signs off-chain message, server submits. Can be parallelized with Privy work since the server-side already exists.</p>
+      </div>
+      <div class="priority-effort tag-red" style="background:var(--red-dim); color:var(--red);">2-3 WEEKS</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>🎨 Frontend: referral page + leaderboard + fee table</h3>
+        <p>High-engagement features that are 100% frontend work — all data is already on-chain. Could be a good "quick win" to make the product feel complete while Privy/Swift are in progress.</p>
+      </div>
+      <div class="priority-effort tag-yellow" style="background:var(--yellow-dim); color:var(--yellow);">1-2 WEEKS</div>
+    </div>
+
+    <div class="priority-item">
+      <div class="priority-num"></div>
+      <div class="priority-content">
+        <h3>🏟️ Offseason logic + multi-league</h3>
+        <p>Oracle V2 offseason regime (Betfair bracket pricing). Market initialization scripts for new leagues. This can wait until the current EPL/La Liga season is near end.</p>
+      </div>
+      <div class="priority-effort tag-orange" style="background:var(--orange-dim); color:var(--orange);">POST-LAUNCH</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================= -->
+<!-- SECTION 6: DEAD CODE TO STRIP -->
+<!-- ============================================= -->
+<section>
+  <div class="section-header">
+    <h2>Dead Code — Consider Stripping</h2>
+    <span class="tag tag-purple">CLEANUP</span>
+  </div>
+
+  <div class="callout warn">
+    <h4>Not urgent, but these add confusion and waste account space</h4>
+    <p>Every byte in an on-chain account costs rent. Every unused bot in Docker costs RAM. Every crypto market config in the keeper adds startup time. Clean when you have a spare afternoon.</p>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:8px; margin-top: 16px;">
+    <div class="audit-row">
+      <div class="name">FUEL fields</div>
+      <div class="detail">6 fields × 4 bytes = 24 bytes/user. No FUEL token. Repurpose for Notch points or strip to save rent.</div>
+      <div><span class="tag tag-purple">24 BYTES</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name">Crypto market configs</div>
+      <div class="detail">SOL-PERP/BTC-PERP/ETH-PERP in keeper configs (markets 0-2). FloatingMaker and JitMaker configured for them. Not relevant to sports perps.</div>
+      <div><span class="tag tag-purple">CONFUSING</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name">Serum / Phoenix / OpenBook</div>
+      <div class="detail">Spot DEX fulfillment integrations. You have 1 spot market (USDC). No spot trading pairs. Dead code in <code>fulfillment_params/</code>.</div>
+      <div><span class="tag tag-purple">~4 FILES</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name">Pyth cranker bot</div>
+      <div class="detail">Configured but commented out ("devnet Wormhole missing guardian set"). Sports markets use PrelaunchOracle, not Pyth. Remove from keeper config entirely.</div>
+      <div><span class="tag tag-purple">CONFUSING</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name">High leverage mode</div>
+      <div class="detail">On-chain config + fee 2x multiplier. Sports perps already cap at 10x. Unless you plan a 50x mode, this is dead machinery.</div>
+      <div><span class="tag tag-purple">OPTIONAL</span></div>
+    </div>
+    <div class="audit-row">
+      <div class="name">IF staking fields</div>
+      <div class="detail"><code>if_staked_quote_asset_amount</code>, <code>if_staked_gov_token_amount</code> in UserStats. No insurance fund staking UI. 16 bytes/user.</div>
+      <div><span class="tag tag-purple">16 BYTES</span></div>
+    </div>
+  </div>
+</section>
+
+<footer style="padding: 48px 0; text-align: center; color: var(--text-muted); font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+  Tail.trade Fork Audit — Generated from custom_perp-dev.zip analysis<br>
+  Protocol: Drift v2 fork • 14 perp markets • Solana devnet
+</footer>
+
+</div>
+</body>
+</html>
